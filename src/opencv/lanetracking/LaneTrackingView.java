@@ -57,13 +57,22 @@ class LaneTrackingView extends LaneTrackingViewBase {
             Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
             break;
         case LaneTrackingNativeCamera.VIEW_MODE_TRACKING:
-        	capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
-            Imgproc.Canny(mGray, mIntermediateMat, 80, 100);
+        	//capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
+        	capture.retrieve(mRgba, Highgui.CV_CAP_ANDROID_COLOR_FRAME_RGBA);
+        	Imgproc.cvtColor(mRgba, mGray, Imgproc.COLOR_RGB2GRAY, 4);
+        	if(LaneTrackingNativeCamera.checkEqualizer){
+        		Imgproc.equalizeHist(mGray, mGray);
+        	}
+        	
+            Imgproc.Canny(mGray, mIntermediateMat, 100, 140);
+            
+            
             Mat lines = new Mat();
 //            Mat leftLines = Mat.zeros(4, 1000, CvType.CV_8UC1);
+            
             Mat leftLines;
             Mat rightLines;
-            int threshold = 8;
+            int threshold = 15;
             int minLineSize = 20;
             int lineGap = 20;
             int rightLineNum=0;
@@ -80,10 +89,10 @@ class LaneTrackingView extends LaneTrackingViewBase {
             double tempLen = 0.0;
             //Mat thresholdImage = new Mat(mRgba.rows() + mRgba.rows() / 2, mRgba.cols(), CvType.CV_8UC1);
             Imgproc.HoughLinesP(mIntermediateMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
-            leftLines = new Mat();
-            rightLines = new Mat();
-            lines.copyTo(leftLines);
-            lines.copyTo(rightLines);
+            int matType = lines.type();
+            leftLines = new Mat(lines.rows(),lines.cols(),matType);
+            rightLines = new Mat(lines.rows(),lines.cols(),matType);
+            
             for (int x = 0; x < lines.cols(); x++){
                   double[] vec = lines.get(0, x);
                   double x1 = vec[0], 
@@ -138,7 +147,10 @@ class LaneTrackingView extends LaneTrackingViewBase {
                 }
             }
 
-            Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
+            if(!LaneTrackingNativeCamera.checkRgb){
+            	Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
+            }
+            
             Core.line(mRgba, leftStart, leftEnd, new Scalar(255,0,0), 3);    //Print the left lane
             Core.line(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);    //Print the right lane
             

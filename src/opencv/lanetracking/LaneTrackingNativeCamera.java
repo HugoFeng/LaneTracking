@@ -9,10 +9,17 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
+import android.widget.FrameLayout;
+import android.widget.FrameLayout.LayoutParams;
 
 public class LaneTrackingNativeCamera extends Activity {
     private static final String TAG             = "LaneTracking::Activity";
@@ -20,13 +27,18 @@ public class LaneTrackingNativeCamera extends Activity {
     public static final int     VIEW_MODE_RGBA  = 0;
     public static final int     VIEW_MODE_GRAY  = 1;
     public static final int     VIEW_MODE_CANNY = 2;
-
+    public static final int     VIEW_MODE_TRACKING = 3;
+    
     private MenuItem            mItemPreviewRGBA;
     private MenuItem            mItemPreviewGray;
     private MenuItem            mItemPreviewCanny;
+    private MenuItem			mItemPreviewTrack;
     private LaneTrackingView         mView;
 
     public static int           viewMode        = VIEW_MODE_RGBA;
+    
+    public static boolean 			checkRgb = false;
+    public static boolean 			checkEqualizer = false;
 
     private BaseLoaderCallback  mOpenCVCallBack = new BaseLoaderCallback(this) {
         @Override
@@ -36,8 +48,35 @@ public class LaneTrackingNativeCamera extends Activity {
                 {
                     Log.i(TAG, "OpenCV loaded successfully");
                     // Create and set View
+                    LayoutInflater inflater = LayoutInflater.from(LaneTrackingNativeCamera.this);
+                    FrameLayout rootView = (FrameLayout) inflater.inflate(R.layout.work, null);
                     mView = new LaneTrackingView(mAppContext);
-                    setContentView(mView);
+                    LayoutParams layoutParams = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+                    mView.setPadding(0, 0, 0, 0);
+                    rootView.addView(mView, 0, layoutParams);
+                    setContentView(rootView);
+                    
+                    CheckBox cbRgb = (CheckBox)rootView.findViewById(R.id.cbRgb);
+                    CheckBox cbEqualizer = (CheckBox)rootView.findViewById(R.id.cbEqualizer);
+                    
+                    cbRgb.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+  
+					@Override
+					public void onCheckedChanged(CompoundButton arg0,
+							boolean arg1) {
+						// TODO Auto-generated method stub
+						checkRgb = arg1;
+					}
+				});
+                    cbEqualizer.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+                    	  
+					@Override
+					public void onCheckedChanged(CompoundButton arg0,
+							boolean arg1) {
+						// TODO Auto-generated method stub
+						checkEqualizer = arg1;
+					}
+				});
 
                     // Check native OpenCV camera
                     if( !mView.openCamera() ) {
@@ -115,6 +154,7 @@ public class LaneTrackingNativeCamera extends Activity {
         mItemPreviewRGBA = menu.add("Preview RGBA");
         mItemPreviewGray = menu.add("Preview GRAY");
         mItemPreviewCanny = menu.add("Canny");
+        mItemPreviewTrack = menu.add("Lane Tracking");
         return true;
     }
 
@@ -127,6 +167,10 @@ public class LaneTrackingNativeCamera extends Activity {
             viewMode = VIEW_MODE_GRAY;
         else if (item == mItemPreviewCanny)
             viewMode = VIEW_MODE_CANNY;
+        else if (item == mItemPreviewTrack)
+        	viewMode = VIEW_MODE_TRACKING;
         return true;
     }
+    
+
 }

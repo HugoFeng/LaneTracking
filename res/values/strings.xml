@@ -4,5 +4,7 @@
     <string name="app_name">LaneTracking</string>
     <string name="dummy_button">Dummy Button</string>
     <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="check_rgb">RGB</string>
+    <string name="check_equalizer">equalizer</string>
 
 </resources>
