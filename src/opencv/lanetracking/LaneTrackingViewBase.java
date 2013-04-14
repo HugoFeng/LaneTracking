@@ -63,6 +63,8 @@ public abstract class LaneTrackingViewBase extends SurfaceView implements Surfac
                     }
                 }
             }
+            mFrameWidth=320;
+            mFrameHeight=240;
 
             mCamera.set(Highgui.CV_CAP_PROP_FRAME_WIDTH, mFrameWidth);
             mCamera.set(Highgui.CV_CAP_PROP_FRAME_HEIGHT, mFrameHeight);
@@ -105,8 +107,10 @@ public abstract class LaneTrackingViewBase extends SurfaceView implements Surfac
             if (bmp != null) {
                 Canvas canvas = mHolder.lockCanvas();
                 if (canvas != null) {
-                    canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
-                    canvas.drawBitmap(bmp, (canvas.getWidth() - bmp.getWidth()) / 2, (canvas.getHeight() - bmp.getHeight()) / 2, null);
+//                    canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
+                	bmp = Bitmap.createScaledBitmap(bmp, canvas.getWidth(), canvas.getHeight(), false);
+//                    canvas.drawBitmap(bmp, (canvas.getWidth() - bmp.getWidth()) / 2, (canvas.getHeight() - bmp.getHeight()) / 2, null);
+                	canvas.drawBitmap(bmp, 0, 0, null);
                     mHolder.unlockCanvasAndPost(canvas);
                 }
                 bmp.recycle();
