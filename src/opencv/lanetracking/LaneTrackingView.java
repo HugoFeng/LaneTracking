@@ -1,5 +1,7 @@
 package opencv.lanetracking;
 
+import java.text.DecimalFormat;
+
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -13,6 +15,7 @@ import org.opencv.imgproc.Imgproc;
 import android.R.bool;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.text.format.Time;
 import android.util.Log;
 import android.view.SurfaceHolder;
 
@@ -22,6 +25,9 @@ class LaneTrackingView extends LaneTrackingViewBase {
     private Mat                 mRgba;
     private Mat                 mGray;
     private Mat                 mIntermediateMat;
+    private long 				mLastTime;
+    private int					mTimeCounter=0;
+    private float				mFrameRate = 0;
 
     public LaneTrackingView(Context context) {
         super(context);
@@ -46,14 +52,20 @@ class LaneTrackingView extends LaneTrackingViewBase {
         switch (LaneTrackingNativeCamera.viewMode) {
         case LaneTrackingNativeCamera.VIEW_MODE_GRAY:
             capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
+        	if(LaneTrackingNativeCamera.checkEqualizer){
+        		Imgproc.equalizeHist(mGray, mGray);
+        	}
             Imgproc.cvtColor(mGray, mRgba, Imgproc.COLOR_GRAY2RGBA, 4);
             break;
         case LaneTrackingNativeCamera.VIEW_MODE_RGBA:
             capture.retrieve(mRgba, Highgui.CV_CAP_ANDROID_COLOR_FRAME_RGBA);
-            Core.putText(mRgba, "OpenCV+Android", new Point(10, 50), 3, 1, new Scalar(255, 0, 0, 255), 2);
+            Core.putText(mRgba, "OpenCV+Android", new Point(5, 290), 3, 0.8, new Scalar(255, 0, 0, 255), 2);
             break;
         case LaneTrackingNativeCamera.VIEW_MODE_CANNY:
             capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
+        	if(LaneTrackingNativeCamera.checkEqualizer){
+        		Imgproc.equalizeHist(mGray, mGray);
+        	}
             Imgproc.Canny(mGray, mIntermediateMat, 80, 100);
             Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
             break;
@@ -84,10 +96,6 @@ class LaneTrackingView extends LaneTrackingViewBase {
             double tanLeft = 0.0;
             double tanRight = 0.0;
             double tanTemp;
-            double leftMaxLen = 0.0;
-            double rightMaxLen = 0.0;
-            double tempLen = 0.0;
-            //Mat thresholdImage = new Mat(mRgba.rows() + mRgba.rows() / 2, mRgba.cols(), CvType.CV_8UC1);
             Imgproc.HoughLinesP(mIntermediateMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
             int matType = lines.type();
             leftLines = new Mat(lines.rows(),lines.cols(),matType);
@@ -99,8 +107,6 @@ class LaneTrackingView extends LaneTrackingViewBase {
                          y1 = vec[1],
                          x2 = vec[2],
                          y2 = vec[3];
-                  Point start = new Point(x1, y1);
-                  Point end = new Point(x2, y2);
                   double tan = (y1 - y2)/(x1 - x2);
                   if(tan>0){
                 	  leftLines.put(0, leftLineNum, vec);
@@ -154,7 +160,19 @@ class LaneTrackingView extends LaneTrackingViewBase {
             
         	break;
         }
-
+        long currentTime = System.currentTimeMillis();
+        
+        if (0 == mTimeCounter++)
+        {
+        	mLastTime = currentTime;
+        }
+        if (mTimeCounter==10) {
+			mTimeCounter=0;
+			long timeDelta = currentTime - mLastTime;
+			mFrameRate = 10000.f/timeDelta ;
+		}
+        Core.putText(mRgba, "FrameRate: " + new DecimalFormat("###,###,###.##").format(mFrameRate ) ,
+        		new Point(5, 315), 0, 0.5, new Scalar(255, 0, 0, 255), 1);
         Bitmap bmp = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap.Config.ARGB_8888);
 
         try {

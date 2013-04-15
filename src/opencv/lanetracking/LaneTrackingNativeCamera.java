@@ -145,6 +145,8 @@ public class LaneTrackingNativeCamera extends Activity {
         Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+				WindowManager.LayoutParams.FLAG_FULLSCREEN);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
@@ -161,14 +163,28 @@ public class LaneTrackingNativeCamera extends Activity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         Log.i(TAG, "called onOptionsItemSelected; selected item: " + item);
-        if (item == mItemPreviewRGBA)
+        CheckBox cbRgb = (CheckBox)findViewById(R.id.cbRgb);
+        CheckBox cbEqualizer = (CheckBox)findViewById(R.id.cbEqualizer);
+        if (item == mItemPreviewRGBA){
             viewMode = VIEW_MODE_RGBA;
-        else if (item == mItemPreviewGray)
+        	cbRgb.setVisibility(View.INVISIBLE);
+        	cbEqualizer.setVisibility(View.INVISIBLE);
+        }
+        else if (item == mItemPreviewGray){
             viewMode = VIEW_MODE_GRAY;
-        else if (item == mItemPreviewCanny)
+            cbRgb.setVisibility(View.INVISIBLE);
+        	cbEqualizer.setVisibility(View.VISIBLE);
+        }
+        else if (item == mItemPreviewCanny){
             viewMode = VIEW_MODE_CANNY;
-        else if (item == mItemPreviewTrack)
+            cbRgb.setVisibility(View.INVISIBLE);
+        	cbEqualizer.setVisibility(View.VISIBLE);
+        }
+        else if (item == mItemPreviewTrack){
         	viewMode = VIEW_MODE_TRACKING;
+        	cbRgb.setVisibility(View.VISIBLE);
+        	cbEqualizer.setVisibility(View.VISIBLE);
+        }
         return true;
     }
     
