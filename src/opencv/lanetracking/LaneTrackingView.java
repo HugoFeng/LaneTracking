@@ -28,6 +28,7 @@ class LaneTrackingView extends LaneTrackingViewBase {
     private long 				mLastTime;
     private int					mTimeCounter=0;
     private float				mFrameRate = 0;
+    private static boolean		isFirstLaunch = true;
 
     public LaneTrackingView(Context context) {
         super(context);
@@ -72,7 +73,14 @@ class LaneTrackingView extends LaneTrackingViewBase {
         case LaneTrackingNativeCamera.VIEW_MODE_TRACKING:
         	//capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
         	capture.retrieve(mRgba, Highgui.CV_CAP_ANDROID_COLOR_FRAME_RGBA);
-        	LaneTrackingProcess ltp = new LaneTrackingProcess(mRgba, LaneTrackingProcess.INIT);
+        	LaneTrackingProcess ltp;
+//        	if (isFirstLaunch) {
+//        		ltp = new LaneTrackingProcess(mRgba, LaneTrackingProcess.INIT);
+//        		isFirstLaunch = false;
+//			} else {
+//				ltp = new LaneTrackingProcess(mRgba, 1);
+//			}
+        	ltp = new LaneTrackingProcess(mRgba, 1);
         	mRgba = ltp.laneTrackingProcess();
         	break;
         }

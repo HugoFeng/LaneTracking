@@ -6,6 +6,7 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
@@ -16,9 +17,11 @@ import android.R.string;
 import android.app.Dialog;
 import android.nfc.Tag;
 import android.os.Message;
+import android.provider.MediaStore.Video;
 import android.renderscript.Sampler.Value;
 import android.util.Log;
 import android.view.ViewDebug.IntToString;
+import android.widget.ImageButton;
 
 public class LaneTrackingProcess {
 	
@@ -27,6 +30,12 @@ public class LaneTrackingProcess {
     private Mat                 mGray;
     public static final int 	INIT = -1;
     private static int 			mMode;
+    private static Point 		lastLeftStart;
+    private static Point 		lastLeftEnd;
+    private static Point 		lastRightStart;
+    private static Point 		lastRightEnd;
+    private static Rect			roiRect;
+    
     
     public LaneTrackingProcess(Mat rgba, int mode) {
 		// TODO Auto-generated constructor stub
@@ -38,6 +47,10 @@ public class LaneTrackingProcess {
 	}
 	public Mat laneTrackingProcess(){
     	Imgproc.cvtColor(mRgba, mGray, Imgproc.COLOR_RGB2GRAY, 4);
+    	if (mMode!=INIT) {
+			
+		}
+    	
     	if(LaneTrackingNativeCamera.checkEqualizer){
     		Imgproc.equalizeHist(mGray, mGray);
     	}
@@ -62,7 +75,16 @@ public class LaneTrackingProcess {
         double tanRight = 0.0;
         double tanTemp;
         
+//        if (mMode != INIT) {
+//			Mat roiMat = mIntermediateMat.submat(roiRect);
+//			Imgproc.HoughLinesP(roiMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
+//		}
+//        else {
+//        	Imgproc.HoughLinesP(mIntermediateMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
+//		}
+        
         Imgproc.HoughLinesP(mIntermediateMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
+        
         int matType = lines.type();
         leftLines = new Mat(lines.rows(),lines.cols(),matType);
         rightLines = new Mat(lines.rows(),lines.cols(),matType);
@@ -128,6 +150,26 @@ public class LaneTrackingProcess {
         if(!LaneTrackingNativeCamera.checkRgb){
         	Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
         }
+//        if(mMode != INIT){
+//        	float angleNow = Core.fastAtan2((float) (leftEnd.y-leftStart.y), (float) (leftEnd.x-leftStart.x));
+//        	float angleLast = Core.fastAtan2((float) (lastLeftEnd.y-lastLeftStart.y), (float) (lastLeftEnd.x-lastLeftStart.x));
+//        	if ((angleNow-angleLast)<-5 || (angleNow-angleLast)>5) {
+//				leftStart = lastLeftStart;
+//				leftEnd = lastLeftEnd;
+//				rightStart = lastRightStart;
+//				rightEnd = lastRightEnd;
+//			}
+//        }
+//        else {
+//			lastLeftStart = leftStart;
+//			lastLeftEnd = leftEnd;
+//			lastRightStart = rightStart;
+//			lastRightEnd = rightEnd;
+//		}
+    	lastLeftStart = leftStart;
+		lastLeftEnd = leftEnd;
+		lastRightStart = rightStart;
+		lastRightEnd = rightEnd;
         
         //Core.line(mRgba, leftStart, leftEnd, new Scalar(255,0,0), 5);    //Print the left lane
         //Core.line(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 5);    //Print the right lane
@@ -145,14 +187,23 @@ public class LaneTrackingProcess {
 		Point vanishPoint = new Point();
 		vanishPoint.x = vanishPointX[0];
 		vanishPoint.y = vanishPointY[0];
+		roiRect = new Rect(0, (int) vanishPoint.y, mRgba.cols()-1, mRgba.rows()-(int)vanishPoint.y-1);
+		Core.rectangle(mRgba, roiRect.br(), roiRect.tl(), new Scalar(255,255,255), 2);
 		
 		//draw vanish point
-        Core.circle(mRgba, vanishPoint, 20, new Scalar(255,255,0), -5);
+        Core.circle(mRgba, vanishPoint, 10, new Scalar(255,255,0), -10);
         //draw infinit lines
-        drawInfinitLine(mRgba, leftStart, leftEnd,new Scalar(255,0,0), 5);
-        drawInfinitLine(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 5);
+        drawInfinitLine(mRgba, leftStart, leftEnd,new Scalar(255,0,0), 3);
+        drawInfinitLine(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
+//        Core.line(mRgba, leftStart, leftEnd, new Scalar(255,0,0), 3);
+//        Core.line(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
+        lastLeftStart = leftStart;
+		lastLeftEnd = leftEnd;
+		lastRightStart = rightStart;
+		lastRightEnd = rightEnd;
         return mRgba;
 	}
+	
 
 	private static float[] formLine(Point p1, Point p2) {
 		float[] line = new float[2];
@@ -200,9 +251,6 @@ public class LaneTrackingProcess {
 		}
 		return vec;
 	}
-	//use Kalman Filter
-//	public native double[] useKalman(KalmanFilter kalman, double[] measure);
-//	public native KalmanFilter initKalman(int stateNum, int measureNum); 
 	private Mat mapCrossPoints(Mat linesL, Mat linesR, int bigLineNum, int width, int height) {
 		Mat crossPointMapMat = Mat.zeros(height, width, CvType.CV_8UC1);
 		for(int i = 0; i< (linesL.cols()<bigLineNum?linesL.cols():bigLineNum); i++){
