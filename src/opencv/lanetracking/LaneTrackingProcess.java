@@ -63,6 +63,10 @@ public class LaneTrackingProcess {
         //Mat testMat = processRoi(roi);
         
         processRoi(roi);
+        Core.line(mRgba,
+        		new Point(0.25*roi.width(),	vanishPoint.y+(1-0.618)*mRgba.rows()), 
+        		new Point(0.75*roi.width(),	vanishPoint.y+(1-0.618)*mRgba.rows()), 
+        		new Scalar(0,255,0), 2);
         return mRgba;
 	}
 	
@@ -130,13 +134,13 @@ public class LaneTrackingProcess {
 		double line[] = formLine(start, end);
 		double k = line[0];
 		double b = line[1];
-		Point upperCrossPoint = new Point(-b/k, 0);
+		Point upperCrossPoint = new Point((25-b)/k, 0);
 		Point lowerCrossPoint = new Point((rows-1-b)/k,rows-1);
-		double upperDelta = 10;
-		double lowerDelta = 60;
+		double upperDelta = 5;
+		double lowerDelta = 40;
 		contour = new MatOfPoint(
-				new Point(upperCrossPoint.x-upperDelta,0), 
-				new Point(upperCrossPoint.x+upperDelta,0), 
+				new Point(upperCrossPoint.x-upperDelta,25), 
+				new Point(upperCrossPoint.x+upperDelta,25), 
 				new Point(lowerCrossPoint.x+lowerDelta,rows-1),
 				new Point(lowerCrossPoint.x-lowerDelta,rows-1)
 				);
@@ -150,7 +154,7 @@ public class LaneTrackingProcess {
 		switch (type) {
 		case initRoiRight:
 			contour = new MatOfPoint(
-					new Point(0.4*cols,0), 
+					new Point(0.45*cols,0), 
 					new Point(0.5*cols,0), 
 					new Point(0.5*cols, rows-1),
 					new Point(0, rows-1),
@@ -160,7 +164,7 @@ public class LaneTrackingProcess {
 		case initRoiLeft:
 			contour = new MatOfPoint(
 					new Point(0.5*cols,0), 
-					new Point(0.6*cols,0), 
+					new Point(0.55*cols,0), 
 					new Point(cols-1, 0.4*rows),
 					new Point(cols-1, rows-1),
 					new Point(0.5*cols, rows-1)
@@ -192,6 +196,10 @@ public class LaneTrackingProcess {
 		double len = Math.sqrt((start.x-end.x)*(start.x-end.x) + (start.y-end.y)*(start.y-end.y));
 		return len;
 	}
+	
+	private static int leftLineLostFrameCount = 0;
+	private static int rightLineLostFrameCount = 0;
+	private static Point vanishPoint;
 	private Mat processRoi(Mat roiRgba) {
 		Mat initMaskLeft = genMask(roiRgba.rows(), roiRgba.cols(), initRoiLeft);
 		Mat initMaskRight = genMask(roiRgba.rows(), roiRgba.cols(), initRoiRight);
@@ -211,7 +219,7 @@ public class LaneTrackingProcess {
         int bigLineNum = 5;
         int threshold = 20;
         int minLineSize = 30;
-        int lineGap = 15;
+        int lineGap = 8;
         Point leftStart = new Point();
         Point leftEnd = new Point();
         Point rightStart = new Point();
@@ -232,10 +240,27 @@ public class LaneTrackingProcess {
 	    	rightLinePt = detectLine(rightLineRoiCanny, false, bigLineNum, threshold, minLineSize, lineGap);
 	    	
 	    	if (getLength(leftLinePt[0], leftLinePt[1]) < 5) {
-	    		leftLinePt = detectLine(roiCannyLeft, true, bigLineNum, threshold, minLineSize, lineGap);
+	    		if(leftLineLostFrameCount>3) {
+	    			leftLinePt = detectLine(roiCannyLeft, true, bigLineNum, threshold, minLineSize, lineGap);
+	    			leftLineLostFrameCount = 0;
+	    		}
+	    		else {
+	    			leftLineLostFrameCount ++;
+	    			leftLinePt[0] = lastLeftStart;
+		    		leftLinePt[1] = lastLeftEnd;
+	    		}
+	    		
 			}
 	    	if (getLength(rightLinePt[0], rightLinePt[1]) < 5) {
-	    		rightLinePt = detectLine(roiCannyRight, false, bigLineNum, threshold, minLineSize, lineGap);
+	    		if(rightLineLostFrameCount>3) {
+	    			rightLinePt = detectLine(roiCannyRight, false, bigLineNum, threshold, minLineSize, lineGap);
+	    			rightLineLostFrameCount = 0;
+	    		}
+	    		else {
+	    			rightLineLostFrameCount ++;
+	    			rightLinePt[0] = lastRightStart;
+		    		rightLinePt[1] = lastRightEnd;
+	    		}
 			}
 		}
 	    else {
@@ -252,36 +277,37 @@ public class LaneTrackingProcess {
 		lastRightStart = rightStart;
 		lastRightEnd = rightEnd;
 		
-        
+		if(!LaneTrackingNativeCamera.checkRgb){
+        	Imgproc.cvtColor(roiCannyTemp, roiRgba, Imgproc.COLOR_GRAY2BGRA, 4);
+        }
         
         double[] vec1 = {leftStart.x, leftStart.y, leftEnd.x, leftEnd.y};
         double[] vec2 = {rightStart.x, rightStart.y, rightEnd.x, rightEnd.y};
         Mat crossPoinMat = getCrossPoint(vec1, vec2);
         double[] vanishPointX = crossPoinMat.get(0, 0);
 		double[] vanishPointY = crossPoinMat.get(1, 0);
-		Point vanishPoint = new Point();
+		vanishPoint = new Point();
 		vanishPoint.x = vanishPointX[0];
 		vanishPoint.y = vanishPointY[0];
-		roiRect = new Rect(0, (int) vanishPoint.y, roiRgba.cols()-1, roiRgba.rows()-(int)vanishPoint.y-1);
-		Core.rectangle(roiRgba, roiRect.br(), roiRect.tl(), new Scalar(255,255,255), 2);
+		//roiRect = new Rect(0, (int) vanishPoint.y, roiRgba.cols()-1, roiRgba.rows()-(int)vanishPoint.y-1);
+		//Core.rectangle(roiRgba, roiRect.br(), roiRect.tl(), new Scalar(255,255,255), 2);
 		List<MatOfPoint> initRoiContourLeft = genContourList(roiRgba.rows(), roiRgba.cols(), initRoiLeft);
 		List<MatOfPoint> initRoiContourRight = genContourList(roiRgba.rows(), roiRgba.cols(), initRoiRight);
 		List<MatOfPoint> leftLineRoiContour = genContourList(leftStart, leftEnd,roiRgba.rows(), roiRgba.cols());
 		List<MatOfPoint> rightLineRoiContour = genContourList(rightStart, rightEnd, roiRgba.rows(), roiRgba.cols());
-		Core.polylines(roiRgba, initRoiContourLeft, true, new Scalar(255, 0, 0), 1);
-		Core.polylines(roiRgba, initRoiContourRight, true, new Scalar(255, 0, 0), 1);
-		Core.polylines(roiRgba, leftLineRoiContour, true, new Scalar(0, 255, 0), 1);
-		Core.polylines(roiRgba, rightLineRoiContour, true, new Scalar(0, 0, 255), 1);
+		Core.polylines(roiRgba, initRoiContourLeft, true, new Scalar(50, 50, 50), 1);
+		Core.polylines(roiRgba, initRoiContourRight, true, new Scalar(50, 50, 50), 1);
+		Core.polylines(roiRgba, leftLineRoiContour, true, new Scalar(200, 0, 0), 2);
+		Core.polylines(roiRgba, rightLineRoiContour, true, new Scalar(0, 0, 200), 2);
 		
 		
 		
 		//draw vanish point
-        Core.circle(roiRgba, vanishPoint, 10, new Scalar(255,255,0), -10);
-//        //draw infinit lines
-//        drawInfinitLine(mRgba, leftStart, leftEnd,new Scalar(255,0,0), 3);
-//        drawInfinitLine(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
-        Core.line(roiRgba, leftStart, leftEnd, new Scalar(255,0,0), 3);
-        Core.line(roiRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
+       // Core.circle(roiRgba, vanishPoint, 10, new Scalar(255,255,0), -10);
+        Core.line(roiRgba,new Point(0,0), new Point(0.25*roiRgba.width(),0), new Scalar(255,255,255), 2);
+        Core.line(roiRgba,new Point(0.75*roiRgba.width(),0), new Point(roiRgba.width(),0), new Scalar(255,255,255), 2);
+        drawInfinitLine(roiRgba, leftStart, leftEnd, new Scalar(255,0,0), 3);
+        drawInfinitLine(roiRgba, rightStart, rightEnd, new Scalar(0,0,255), 3); 
         lastLeftStart = leftStart;
 		lastLeftEnd = leftEnd;
 		lastRightStart = rightStart;
@@ -312,7 +338,8 @@ public class LaneTrackingProcess {
 		start.y = (double) yMax;
 		start.x = (start.y-p1.y)*(p2.x-p1.x)/(p2.y-p1.y)+p1.x;
 		
-		end.y = 0.0;
+		//end.y = 0.0;
+		end.y = 25;
 		end.x = (end.y-p1.y)*(p2.x-p1.x)/(p2.y-p1.y) + p1.x;
 		
 		Core.line(image, start, end, color, thickness);
