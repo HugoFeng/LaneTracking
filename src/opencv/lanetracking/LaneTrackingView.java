@@ -68,7 +68,22 @@ class LaneTrackingView extends LaneTrackingViewBase {
         		Imgproc.equalizeHist(mGray, mGray);
         	}
             Imgproc.Canny(mGray, mIntermediateMat, 80, 100);
-            Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
+            Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2RGBA, 4);
+            break;
+        case LaneTrackingNativeCamera.VIEW_MODE_SOBEL:
+            capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
+        	if(LaneTrackingNativeCamera.checkEqualizer){
+        		Imgproc.equalizeHist(mGray, mGray);
+        	}
+        	Mat sobelHorizon = new Mat();
+        	Mat sobelVertical = new Mat();
+        	Mat temp = new Mat();
+        	Imgproc.Canny(mGray, mGray, 80, 100);
+        	Core.convertScaleAbs(mGray, mGray);
+            Imgproc.Sobel(mGray, sobelHorizon, mGray.depth(), 1, 0);
+            Imgproc.Sobel(mGray, sobelVertical, mGray.depth(), 0, 1);
+            Core.addWeighted(sobelVertical, 0.5, sobelHorizon, 0.5, 0, temp);
+            Imgproc.cvtColor(temp, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
             break;
         case LaneTrackingNativeCamera.VIEW_MODE_TRACKING:
         	//capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);

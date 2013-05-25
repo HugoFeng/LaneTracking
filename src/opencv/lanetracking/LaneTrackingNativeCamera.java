@@ -28,10 +28,13 @@ public class LaneTrackingNativeCamera extends Activity {
     public static final int     VIEW_MODE_GRAY  = 1;
     public static final int     VIEW_MODE_CANNY = 2;
     public static final int     VIEW_MODE_TRACKING = 3;
+    public static final int     VIEW_MODE_SOBEL = 4;
+    
     
     private MenuItem            mItemPreviewRGBA;
     private MenuItem            mItemPreviewGray;
     private MenuItem            mItemPreviewCanny;
+    private MenuItem            mItemPreviewSobel;
     private MenuItem			mItemPreviewTrack;
     private LaneTrackingView         mView;
 
@@ -156,6 +159,7 @@ public class LaneTrackingNativeCamera extends Activity {
         mItemPreviewRGBA = menu.add("Preview RGBA");
         mItemPreviewGray = menu.add("Preview GRAY");
         mItemPreviewCanny = menu.add("Canny");
+        mItemPreviewSobel = menu.add("Sobel");
         mItemPreviewTrack = menu.add("Lane Tracking");
         return true;
     }
@@ -177,6 +181,11 @@ public class LaneTrackingNativeCamera extends Activity {
         }
         else if (item == mItemPreviewCanny){
             viewMode = VIEW_MODE_CANNY;
+            cbRgb.setVisibility(View.INVISIBLE);
+        	cbEqualizer.setVisibility(View.VISIBLE);
+        }
+        else if (item == mItemPreviewSobel){
+            viewMode = VIEW_MODE_SOBEL;
             cbRgb.setVisibility(View.INVISIBLE);
         	cbEqualizer.setVisibility(View.VISIBLE);
         }

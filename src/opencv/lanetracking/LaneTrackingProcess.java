@@ -156,18 +156,18 @@ public class LaneTrackingProcess {
 			contour = new MatOfPoint(
 					new Point(0.45*cols,0), 
 					new Point(0.5*cols,0), 
-					new Point(0.5*cols, rows-1),
-					new Point(0, rows-1),
-					new Point(0, 0.4*rows)
+					new Point(0.5*cols, rows),
+					new Point(-1, rows),
+					new Point(-1, 0.4*rows)
 					);
 			break;
 		case initRoiLeft:
 			contour = new MatOfPoint(
 					new Point(0.5*cols,0), 
 					new Point(0.55*cols,0), 
-					new Point(cols-1, 0.4*rows),
-					new Point(cols-1, rows-1),
-					new Point(0.5*cols, rows-1)
+					new Point(cols, 0.4*rows),
+					new Point(cols, rows),
+					new Point(0.5*cols, rows)
 					);
 			break;
 		default:
@@ -210,6 +210,7 @@ public class LaneTrackingProcess {
     		Imgproc.equalizeHist(roiGray, roiGray);
     	}
     	Imgproc.Canny(roiGray, roiCannyTemp, 100, 140);
+    	
     	Mat roiCannyLeft = new Mat();
     	Mat roiCannyRight = new Mat();
     	roiCannyTemp.copyTo(roiCannyLeft,initMaskLeft);
