@@ -74,14 +74,16 @@ class LaneTrackingView extends LaneTrackingViewBase {
         	//capture.retrieve(mGray, Highgui.CV_CAP_ANDROID_GREY_FRAME);
         	capture.retrieve(mRgba, Highgui.CV_CAP_ANDROID_COLOR_FRAME_RGBA);
         	LaneTrackingProcess ltp;
-//        	if (isFirstLaunch) {
-//        		ltp = new LaneTrackingProcess(mRgba, LaneTrackingProcess.INIT);
-//        		isFirstLaunch = false;
-//			} else {
-//				ltp = new LaneTrackingProcess(mRgba, 1);
-//			}
-        	ltp = new LaneTrackingProcess(mRgba, 1);
-        	mRgba = ltp.laneTrackingProcess();
+        	if (isFirstLaunch) {
+        		ltp = new LaneTrackingProcess(mRgba, LaneTrackingProcess.INIT);
+        		mRgba = ltp.laneTrackingProcess();
+        		isFirstLaunch = false;
+			} else {
+				ltp = new LaneTrackingProcess(mRgba, 1);
+				mRgba = ltp.laneTrackingProcess();
+			}
+//        	ltp = new LaneTrackingProcess(mRgba, 1);
+//        	mRgba = ltp.laneTrackingProcess();
         	break;
         }
         

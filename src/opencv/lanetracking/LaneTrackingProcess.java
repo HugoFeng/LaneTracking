@@ -187,6 +187,11 @@ public class LaneTrackingProcess {
 		Core.fillPoly(mask,roiContour,new Scalar(255,0,0));
 		return mask;
 	}
+	
+	private static double getLength(Point start, Point end) {
+		double len = Math.sqrt((start.x-end.x)*(start.x-end.x) + (start.y-end.y)*(start.y-end.y));
+		return len;
+	}
 	private Mat processRoi(Mat roiRgba) {
 		Mat initMaskLeft = genMask(roiRgba.rows(), roiRgba.cols(), initRoiLeft);
 		Mat initMaskRight = genMask(roiRgba.rows(), roiRgba.cols(), initRoiRight);
@@ -201,13 +206,7 @@ public class LaneTrackingProcess {
     	Mat roiCannyRight = new Mat();
     	roiCannyTemp.copyTo(roiCannyLeft,initMaskLeft);
     	roiCannyTemp.copyTo(roiCannyRight,initMaskRight);
-    	
-//      if (mMode != INIT) {
-//    	  
-//		}
-//      else {
-//    	  
-//		}
+
 		
         int bigLineNum = 5;
         int threshold = 20;
@@ -217,19 +216,42 @@ public class LaneTrackingProcess {
         Point leftEnd = new Point();
         Point rightStart = new Point();
         Point rightEnd = new Point();
-        Point[] linePt = new Point[2];
-    	lastLeftStart = leftStart;
+        Point[] leftLinePt = new Point[2];
+        Point[] rightLinePt = new Point[2];
+		
+    	
+	    if (mMode != INIT) {
+	    	Mat leftLineRoiCanny = new Mat();
+	    	Mat leftLineRoiMask = genMask(lastLeftStart, lastLeftEnd, roiRgba.rows(), roiRgba.cols());
+	    	roiCannyLeft.copyTo(leftLineRoiCanny, leftLineRoiMask);
+	    	leftLinePt = detectLine(leftLineRoiCanny, true, bigLineNum, threshold, minLineSize, lineGap);
+	    	
+	    	Mat rightLineRoiCanny = new Mat();
+	    	Mat rightLineRoiMask = genMask(lastRightStart, lastRightEnd, roiRgba.rows(), roiRgba.cols());
+	    	roiCannyRight.copyTo(rightLineRoiCanny, rightLineRoiMask);
+	    	rightLinePt = detectLine(rightLineRoiCanny, false, bigLineNum, threshold, minLineSize, lineGap);
+	    	
+	    	if (getLength(leftLinePt[0], leftLinePt[1]) < 5) {
+	    		leftLinePt = detectLine(roiCannyLeft, true, bigLineNum, threshold, minLineSize, lineGap);
+			}
+	    	if (getLength(rightLinePt[0], rightLinePt[1]) < 5) {
+	    		rightLinePt = detectLine(roiCannyRight, false, bigLineNum, threshold, minLineSize, lineGap);
+			}
+		}
+	    else {
+	    	leftLinePt = detectLine(roiCannyLeft, true, bigLineNum, threshold, minLineSize, lineGap);
+			rightLinePt = detectLine(roiCannyRight, false, bigLineNum, threshold, minLineSize, lineGap);
+		}
+	    
+	    leftStart = leftLinePt[0];
+		leftEnd = leftLinePt[1];
+		rightStart = rightLinePt[0];
+		rightEnd = rightLinePt[1];
+	    lastLeftStart = leftStart;
 		lastLeftEnd = leftEnd;
 		lastRightStart = rightStart;
 		lastRightEnd = rightEnd;
-        
-		linePt = detectLine(roiCannyLeft, true, bigLineNum, threshold, minLineSize, lineGap);
-		leftStart = linePt[0];
-		leftEnd = linePt[1];
 		
-		linePt = detectLine(roiCannyRight, false, bigLineNum, threshold, minLineSize, lineGap);
-		rightStart = linePt[0];
-		rightEnd = linePt[1];
         
         
         double[] vec1 = {leftStart.x, leftStart.y, leftEnd.x, leftEnd.y};
@@ -244,8 +266,13 @@ public class LaneTrackingProcess {
 		Core.rectangle(roiRgba, roiRect.br(), roiRect.tl(), new Scalar(255,255,255), 2);
 		List<MatOfPoint> initRoiContourLeft = genContourList(roiRgba.rows(), roiRgba.cols(), initRoiLeft);
 		List<MatOfPoint> initRoiContourRight = genContourList(roiRgba.rows(), roiRgba.cols(), initRoiRight);
+		List<MatOfPoint> leftLineRoiContour = genContourList(leftStart, leftEnd,roiRgba.rows(), roiRgba.cols());
+		List<MatOfPoint> rightLineRoiContour = genContourList(rightStart, rightEnd, roiRgba.rows(), roiRgba.cols());
 		Core.polylines(roiRgba, initRoiContourLeft, true, new Scalar(255, 0, 0), 1);
-		Core.polylines(roiRgba, initRoiContourRight, true, new Scalar(0, 255, 0), 1);
+		Core.polylines(roiRgba, initRoiContourRight, true, new Scalar(255, 0, 0), 1);
+		Core.polylines(roiRgba, leftLineRoiContour, true, new Scalar(0, 255, 0), 1);
+		Core.polylines(roiRgba, rightLineRoiContour, true, new Scalar(0, 0, 255), 1);
+		
 		
 		
 		//draw vanish point
