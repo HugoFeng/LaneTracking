@@ -1,11 +1,15 @@
 package opencv.lanetracking;
 
 import java.util.logging.Logger;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
+import org.opencv.core.Range;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -14,7 +18,9 @@ import org.opencv.video.KalmanFilter;
 
 import android.R.integer;
 import android.R.string;
+import android.animation.IntEvaluator;
 import android.app.Dialog;
+import android.mtp.MtpConstants;
 import android.nfc.Tag;
 import android.os.Message;
 import android.provider.MediaStore.Video;
@@ -46,137 +52,184 @@ public class LaneTrackingProcess {
     	
 	}
 	public Mat laneTrackingProcess(){
-    	Imgproc.cvtColor(mRgba, mGray, Imgproc.COLOR_RGB2GRAY, 4);
-    	if (mMode!=INIT) {
-			
+    	
+//    	if (mMode!=INIT) {
+//			
+//		}
+    	
+        Mat roi = mRgba.submat(
+        		new Range((int) ((1-0.618)*mRgba.rows()), mRgba.rows()-1), 
+        		Range.all());
+        //Mat testMat = processRoi(roi);
+        
+        processRoi(roi);
+        return mRgba;
+	}
+	
+	
+	private Point[] detectLine(Mat roiCanny, boolean isLeftLine, 
+			int bigLineNum, int threshold, int minLineSize, int lineGap) {
+		Mat detectedLines = new Mat();
+		
+		int selectedLineNum=0;
+		Point start = new Point();
+        Point end = new Point();
+        Point[] linePt = new Point[2];
+        double tan = 0.0;
+        double tanTemp;
+		Imgproc.HoughLinesP(roiCanny, detectedLines, 7, Math.PI/180, threshold, minLineSize, lineGap);
+		Mat selectedLines = new Mat(detectedLines.rows(),detectedLines.cols(),detectedLines.type());
+		Log.d("mycv", "num of detected hough lines = " + detectedLines.cols());
+		for (int x = 0; x < detectedLines.cols(); x++){
+            double[] vec = detectedLines.get(0, x);
+            double x1 = vec[0], 
+                   y1 = vec[1],
+                   x2 = vec[2],
+                   y2 = vec[3];
+            double k = (y1 - y2)/(x1 - x2);
+            if((k>0 && isLeftLine) || (k<0 && !isLeftLine)){
+            	selectedLines.put(0, selectedLineNum, vec);
+            	selectedLineNum++;
+            }
 		}
-    	
+		bubbleSort(selectedLines, selectedLineNum, BIG_FIRST, bigLineNum);
+        for(int x=0; (x < bigLineNum)&&(x<selectedLineNum);x++){
+        	double[] vec = selectedLines.get(0, x);
+            double x1 = vec[0], 
+                   y1 = vec[1],
+                   x2 = vec[2],
+                   y2 = vec[3];
+            tanTemp = (y1 - y2)/(x1 - x2);
+            if(isLeftLine&&(tanTemp>tan)&&(tanTemp<2)){
+          	  	tan = tanTemp;
+          	  	Point startTemp = new Point(x1, y1);
+          	  	Point endTemp = new Point(x2, y2);
+          	  	start = startTemp;
+          	  	end = endTemp;
+            }
+            if(!isLeftLine&&(tanTemp<tan)&&(tanTemp>-2)){
+            	tan = tanTemp;
+                Point startTemp = new Point(x1, y1);
+                Point endTemp = new Point(x2, y2);
+                start = startTemp;
+            	end = endTemp;
+            }
+        }
+        linePt[0] = start;
+        linePt[1] = end;
+        return linePt;
+		
+	}
+
+	private static final int initRoiLeft = 0;
+	private static final int initRoiRight = 1;
+	
+	private List<MatOfPoint> genContourList(Point start, Point end, int rows, int cols) {
+		List<MatOfPoint> roiContour = new ArrayList<MatOfPoint>(1);
+		MatOfPoint contour;
+		double line[] = formLine(start, end);
+		double k = line[0];
+		double b = line[1];
+		Point upperCrossPoint = new Point(-b/k, 0);
+		Point lowerCrossPoint = new Point((rows-1-b)/k,rows-1);
+		double upperDelta = 10;
+		double lowerDelta = 60;
+		contour = new MatOfPoint(
+				new Point(upperCrossPoint.x-upperDelta,0), 
+				new Point(upperCrossPoint.x+upperDelta,0), 
+				new Point(lowerCrossPoint.x+lowerDelta,rows-1),
+				new Point(lowerCrossPoint.x-lowerDelta,rows-1)
+				);
+		roiContour.add(contour);
+		return roiContour;
+	}
+	
+	private List<MatOfPoint> genContourList(int rows,int cols,int type) {
+		List<MatOfPoint> roiContour = new ArrayList<MatOfPoint>(1);
+		MatOfPoint contour;
+		switch (type) {
+		case initRoiRight:
+			contour = new MatOfPoint(
+					new Point(0.4*cols,0), 
+					new Point(0.5*cols,0), 
+					new Point(0.5*cols, rows-1),
+					new Point(0, rows-1),
+					new Point(0, 0.4*rows)
+					);
+			break;
+		case initRoiLeft:
+			contour = new MatOfPoint(
+					new Point(0.5*cols,0), 
+					new Point(0.6*cols,0), 
+					new Point(cols-1, 0.4*rows),
+					new Point(cols-1, rows-1),
+					new Point(0.5*cols, rows-1)
+					);
+			break;
+		default:
+			contour = new MatOfPoint();
+			break;
+		}
+		roiContour.add(contour);
+		return roiContour;
+	}
+	
+	private Mat genMask(Point start, Point end, int rows,int cols) {
+		Mat mask = new Mat(rows, cols, CvType.CV_8UC1);
+		List<MatOfPoint> roiContour = genContourList(start, end, rows, cols);
+		Core.fillPoly(mask,roiContour,new Scalar(255,0,0));
+		return mask;
+	}
+	
+	private Mat genMask(int rows,int cols,int type) {
+		Mat mask = new Mat(rows, cols, CvType.CV_8UC1);
+		List<MatOfPoint> roiContour = genContourList(rows, cols, type);
+		Core.fillPoly(mask,roiContour,new Scalar(255,0,0));
+		return mask;
+	}
+	private Mat processRoi(Mat roiRgba) {
+		Mat initMaskLeft = genMask(roiRgba.rows(), roiRgba.cols(), initRoiLeft);
+		Mat initMaskRight = genMask(roiRgba.rows(), roiRgba.cols(), initRoiRight);
+		Mat roiGray = new Mat();
+		Mat roiCannyTemp = new Mat();
+		Imgproc.cvtColor(roiRgba, roiGray, Imgproc.COLOR_RGB2GRAY, 4);
     	if(LaneTrackingNativeCamera.checkEqualizer){
-    		Imgproc.equalizeHist(mGray, mGray);
+    		Imgproc.equalizeHist(roiGray, roiGray);
     	}
+    	Imgproc.Canny(roiGray, roiCannyTemp, 100, 140);
+    	Mat roiCannyLeft = new Mat();
+    	Mat roiCannyRight = new Mat();
+    	roiCannyTemp.copyTo(roiCannyLeft,initMaskLeft);
+    	roiCannyTemp.copyTo(roiCannyRight,initMaskRight);
     	
-        Imgproc.Canny(mGray, mIntermediateMat, 100, 140);
-        
-        
-        Mat lines = new Mat();
-        Mat leftLines;
-        Mat rightLines;
+//      if (mMode != INIT) {
+//    	  
+//		}
+//      else {
+//    	  
+//		}
+		
         int bigLineNum = 5;
         int threshold = 20;
         int minLineSize = 30;
         int lineGap = 15;
-        int rightLineNum=0;
-        int leftLineNum=0;
         Point leftStart = new Point();
         Point leftEnd = new Point();
         Point rightStart = new Point();
         Point rightEnd = new Point();
-        double tanLeft = 0.0;
-        double tanRight = 0.0;
-        double tanTemp;
-        
-//        if (mMode != INIT) {
-//			Mat roiMat = mIntermediateMat.submat(roiRect);
-//			Imgproc.HoughLinesP(roiMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
-//		}
-//        else {
-//        	Imgproc.HoughLinesP(mIntermediateMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
-//		}
-        
-        Imgproc.HoughLinesP(mIntermediateMat, lines, 7, Math.PI/180, threshold, minLineSize, lineGap);
-        
-        int matType = lines.type();
-        leftLines = new Mat(lines.rows(),lines.cols(),matType);
-        rightLines = new Mat(lines.rows(),lines.cols(),matType);
-        
-        for (int x = 0; x < lines.cols(); x++){
-              double[] vec = lines.get(0, x);
-              double x1 = vec[0], 
-                     y1 = vec[1],
-                     x2 = vec[2],
-                     y2 = vec[3];
-              double tan = (y1 - y2)/(x1 - x2);
-              if(tan>0){
-            	  leftLines.put(0, leftLineNum, vec);
-            	  leftLineNum++;
-              }
-              if(tan<0){
-            	  rightLines.put(0, rightLineNum, vec);
-           		  rightLineNum++;
-              }
-        }
-        Log.d("mycv", "num = " + lines.cols());
-        bubbleSort(leftLines, leftLineNum, BIG_FIRST, bigLineNum);
-        bubbleSort(rightLines, rightLineNum, BIG_FIRST, bigLineNum);
-        
-        
-        
-        
-//        QuickSort.sort(leftLines);
-//        QuickSort.sort(rightLines);
-        
-        for(int x=0; (x < bigLineNum)&&(x<leftLineNum);x++){
-        	double[] vec = leftLines.get(0, x);
-            double x1 = vec[0], 
-                   y1 = vec[1],
-                   x2 = vec[2],
-                   y2 = vec[3];
-            tanTemp = (y1 - y2)/(x1 - x2);
-            if((tanTemp > tanLeft)&&(tanTemp<2)){
-          	  tanLeft = tanTemp;
-              Point start = new Point(x1, y1);
-              Point end = new Point(x2, y2);
-          	  leftStart = start;
-          	  leftEnd = end;
-            }
-        }
-        for(int x=0; (x < bigLineNum)&&(x<rightLineNum); x++){
-        	double[] vec = rightLines.get(0, x);
-            double x1 = vec[0], 
-                   y1 = vec[1],
-                   x2 = vec[2],
-                   y2 = vec[3];
-            tanTemp = (y1 - y2)/(x1 - x2);
-            if((tanTemp < tanRight)&&(tanTemp>-2)){
-          	  tanRight = tanTemp;
-              Point start = new Point(x1, y1);
-              Point end = new Point(x2, y2);
-          	  rightStart = start;
-          	  rightEnd = end;
-            }
-        }
-        
-
-        if(!LaneTrackingNativeCamera.checkRgb){
-        	Imgproc.cvtColor(mIntermediateMat, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
-        }
-//        if(mMode != INIT){
-//        	float angleNow = Core.fastAtan2((float) (leftEnd.y-leftStart.y), (float) (leftEnd.x-leftStart.x));
-//        	float angleLast = Core.fastAtan2((float) (lastLeftEnd.y-lastLeftStart.y), (float) (lastLeftEnd.x-lastLeftStart.x));
-//        	if ((angleNow-angleLast)<-5 || (angleNow-angleLast)>5) {
-//				leftStart = lastLeftStart;
-//				leftEnd = lastLeftEnd;
-//				rightStart = lastRightStart;
-//				rightEnd = lastRightEnd;
-//			}
-//        }
-//        else {
-//			lastLeftStart = leftStart;
-//			lastLeftEnd = leftEnd;
-//			lastRightStart = rightStart;
-//			lastRightEnd = rightEnd;
-//		}
+        Point[] linePt = new Point[2];
     	lastLeftStart = leftStart;
 		lastLeftEnd = leftEnd;
 		lastRightStart = rightStart;
 		lastRightEnd = rightEnd;
         
-        //Core.line(mRgba, leftStart, leftEnd, new Scalar(255,0,0), 5);    //Print the left lane
-        //Core.line(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 5);    //Print the right lane
-//        Mat pointMap = mapCrossPoints(leftLines, rightLines, 1, 480, 320);
-//        Imgproc.cvtColor(points, mRgba, Imgproc.COLOR_GRAY2BGRA, 4);
-//        int[] vanishPoint = getVanishPoint(pointMap);
-//        //********************
+		linePt = detectLine(roiCannyLeft, true, bigLineNum, threshold, minLineSize, lineGap);
+		leftStart = linePt[0];
+		leftEnd = linePt[1];
+		
+		linePt = detectLine(roiCannyRight, false, bigLineNum, threshold, minLineSize, lineGap);
+		rightStart = linePt[0];
+		rightEnd = linePt[1];
         
         
         double[] vec1 = {leftStart.x, leftStart.y, leftEnd.x, leftEnd.y};
@@ -187,32 +240,40 @@ public class LaneTrackingProcess {
 		Point vanishPoint = new Point();
 		vanishPoint.x = vanishPointX[0];
 		vanishPoint.y = vanishPointY[0];
-		roiRect = new Rect(0, (int) vanishPoint.y, mRgba.cols()-1, mRgba.rows()-(int)vanishPoint.y-1);
-		Core.rectangle(mRgba, roiRect.br(), roiRect.tl(), new Scalar(255,255,255), 2);
+		roiRect = new Rect(0, (int) vanishPoint.y, roiRgba.cols()-1, roiRgba.rows()-(int)vanishPoint.y-1);
+		Core.rectangle(roiRgba, roiRect.br(), roiRect.tl(), new Scalar(255,255,255), 2);
+		List<MatOfPoint> initRoiContourLeft = genContourList(roiRgba.rows(), roiRgba.cols(), initRoiLeft);
+		List<MatOfPoint> initRoiContourRight = genContourList(roiRgba.rows(), roiRgba.cols(), initRoiRight);
+		Core.polylines(roiRgba, initRoiContourLeft, true, new Scalar(255, 0, 0), 1);
+		Core.polylines(roiRgba, initRoiContourRight, true, new Scalar(0, 255, 0), 1);
+		
 		
 		//draw vanish point
-        Core.circle(mRgba, vanishPoint, 10, new Scalar(255,255,0), -10);
-        //draw infinit lines
-        drawInfinitLine(mRgba, leftStart, leftEnd,new Scalar(255,0,0), 3);
-        drawInfinitLine(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
-//        Core.line(mRgba, leftStart, leftEnd, new Scalar(255,0,0), 3);
-//        Core.line(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
+        Core.circle(roiRgba, vanishPoint, 10, new Scalar(255,255,0), -10);
+//        //draw infinit lines
+//        drawInfinitLine(mRgba, leftStart, leftEnd,new Scalar(255,0,0), 3);
+//        drawInfinitLine(mRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
+        Core.line(roiRgba, leftStart, leftEnd, new Scalar(255,0,0), 3);
+        Core.line(roiRgba, rightStart, rightEnd, new Scalar(0,255,0), 3);
         lastLeftStart = leftStart;
 		lastLeftEnd = leftEnd;
 		lastRightStart = rightStart;
 		lastRightEnd = rightEnd;
-        return mRgba;
+        return roiRgba;
+		
 	}
 	
 
-	private static float[] formLine(Point p1, Point p2) {
-		float[] line = new float[2];
+	
+	
+	private static double[] formLine(Point p1, Point p2) {
+		double[] line = new double[2];
 		// use 2 points to get line in formation of y=kx + b
 		//calculate k
-		line[0] = (float) ((p1.y-p2.y)/(p1.x-p2.x));
+		line[0] = (p1.y-p2.y)/(p1.x-p2.x);
 		
 		//calculate b
-		line[1] = (float) (p1.y - line[0] * p1.x);
+		line[1] = p1.y - line[0] * p1.x;
 		
 		return line;
 	}
