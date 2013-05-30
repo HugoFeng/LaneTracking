@@ -9,6 +9,8 @@ import org.opencv.highgui.Highgui;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -63,8 +65,8 @@ public abstract class LaneTrackingViewBase extends SurfaceView implements Surfac
                     }
                 }
             }
-            //mFrameWidth=480;
-            //mFrameHeight=320;
+            mFrameWidth=480;
+            mFrameHeight=320;
 
             mCamera.set(Highgui.CV_CAP_PROP_FRAME_WIDTH, mFrameWidth);
             mCamera.set(Highgui.CV_CAP_PROP_FRAME_HEIGHT, mFrameHeight);
@@ -108,11 +110,22 @@ public abstract class LaneTrackingViewBase extends SurfaceView implements Surfac
                 Canvas canvas = mHolder.lockCanvas();
                 if (canvas != null) {
                     canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
-                	//bmp = Bitmap.createScaledBitmap(bmp, canvas.getWidth(), canvas.getHeight(), false);
+//                	bmp = Bitmap.createScaledBitmap(bmp, canvas.getWidth(), canvas.getHeight(), false);
+//                	canvas.drawBitmap(bmp, 0, 0, null);
                 	//bmp = Bitmap.createBitmap(bmp);
                 	
-                    canvas.drawBitmap(bmp, (canvas.getWidth() - bmp.getWidth()) / 2, (canvas.getHeight() - bmp.getHeight()) / 2, null);
-                	//canvas.drawBitmap(bmp, 0, 0, null);
+//                    Paint paint = new Paint();
+//                    paint.setAntiAlias(true);
+//                    paint.setFilterBitmap(true);
+//                    paint.setDither(true);
+                    
+                    Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+                    //canvas.drawBitmap(bmp, (canvas.getWidth() - bmp.getWidth()) / 2, (canvas.getHeight() - bmp.getHeight()) / 2, null);
+                    canvas.drawBitmap(bmp, null, new Rect(0, 0, canvas.getWidth(), canvas.getHeight()), paint);
+                    
+                    //canvas.drawBitmap(bmp, (canvas.getWidth() - bmp.getWidth()) / 2, (canvas.getHeight() - bmp.getHeight()) / 2, null);
+                    
+                	
                     mHolder.unlockCanvasAndPost(canvas);
                 }
                 bmp.recycle();
